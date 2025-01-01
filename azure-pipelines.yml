@@ -1,0 +1,92 @@
+trigger: none
+pr: none
+
+schedules:
+- cron: "0 3 * * *"
+  displayName: Nightly build
+  branches:
+    include:
+    - main
+  always: true
+
+variables:
+  - group: GekidouSecrets
+resources:
+  repositories:
+  - repository: GekidouTranslationStrings
+    type: github
+    endpoint: haroohie-club
+    name: haroohie-club/GekidouTranslationStrings
+  - repository: GekidouTranslationAssets
+    type: github
+    endpoint: haroohie-club
+    name: haroohie-club/GekidouTranslationAssets
+  - repository: GekidouTranslationUtility
+    type: github
+    endpoint: haroohie-club
+    name: haroohie-club/GekidouTranslationUtility
+  - repository: HaroohieCloudManager
+    type: github
+    endpoint: haroohie-club
+    name: haroohie-club/HaroohieCloudManager
+
+jobs:
+- job:
+  strategy:
+    matrix:
+      en:
+        Language: "en"
+        PatchVersion: alpha-$(Build.BuildNumber)
+  displayName: Build & Publish
+  pool:
+    vmImage: ubuntu-latest
+  container: ghcr.io/haroohie-club/heiretsu-devkitppc:main
+  steps:
+  - checkout: self
+    clean: true
+  - checkout: GekidouTranslationStrings
+  - checkout: GekidouTranslationAssets
+  - checkout: GekidouTranslationUtility
+  - checkout: HaroohieCloudManager
+  - script: mkdir $(Build.SourcesDirectory)/GekidouTranslationBuild/original
+    displayName: Create directory for ROM
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'run'
+      projects: HaroohieCloudManager/HaroohieCloudManager/HaroohieCloudManager.csproj
+      arguments: '-- download-rom -k $(SpacesKey) -s $(SpacesSecret) -u "https://nyc3.digitaloceanspaces.com" -n "haroohie" -r "bootstrap/gekidou/RHHJ8J.iso" -p "$(Build.SourcesDirectory)/GekidouTranslationBuild/original/RHHJ8J.iso"'
+    displayName: Download ROM
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'build'
+      projects: GekidouTranslationUtility/HaruhiHGekidouCLI/HaruhiGekidouCLI.csproj
+    displayName: Build HaruhiGekidouCLI
+
+  - task: PowerShell@2
+    inputs:
+      filePath: GekidouTranslationBuild/setup.ps1
+      arguments: -gekidouCli "$(Build.SourcesDirectory)/GekidouTranslationUtility/HaruhiGekidouCLI/bin/Debug/net8.0/HaruhiGekidouCLI"
+      workingDirectory: $(Build.SourcesDirectory)/GekidouTranslationBuild
+    displayName: Run setup
+
+  - task: PowerShell@2
+    inputs:
+      filePath: GekidouTranslationBuild/build.ps1
+      arguments: -gekidouCli "$(Build.SourcesDirectory)/GekidouTranslationUtility/HaruhiGekidouCLI/bin/Debug/net8.0/HaruhiGekidouCLI" -assetsFolder "$(Build.SourcesDirectory)/GekidouTranslationAssets" -stringsFolder "$(Build.SourcesDirectory)/GekidouTranslationStrings" -langCode "$(Language)"
+      workingDirectory: $(Build.SourcesDirectory)/GekidouTranslationBuild 
+    displayName: Build Riivolution patch
+
+  - pwsh: |
+      Write-Host "Zipping Riivolution patch..."
+      $fileToUpload = "$(Build.ArtifactStagingDirectory)/gekidou-patch-$($env:PatchVersion).zip"
+      Compress-Archive -Path "$(Build.SourcesDirectory)/GekidouTranslationBuild/patch/*" -DestinationPath $fileToUpload
+
+      Write-Host "Uploading patch to storage..."
+      dotnet run --project "$(Build.SourcesDirectory)/HaroohieCloudManager/HaroohieCloudManager/HaroohieCloudManager.csproj" -- upload-patches -k $env:SpacesKey -s $env:SpacesSecret -u "https://nyc3.digitaloceanspaces.com" -n "haroohie" -g "gekidou" -l "$env:Language" -v "$env:PatchVersion" -p "Patch:$fileToUpload" -w "$env:DiscordWebhook"
+    env:
+      Language: $(Language)
+      PatchVersion: $(PatchVersion)
+      SpacesKey: $(SpacesKey)
+      SpacesSecret: $(SpacesSecret)
+      DiscordWebhook: $(DiscordWebhookURL)
+    displayName: Upload to patches to storage and post Discord notification
