@@ -1,0 +1,16 @@
+<wiidisc version="1">
+  <id game="RHHJ8J" />
+  <options>
+    <section name="Haroohie Translation Club Translation Patch">
+      <option name="Full Game Translation">
+        <choice name="Enabled">
+          <patch id="GekidouTranslation" />
+        </choice>
+      </option>
+    </section>
+  </options>
+  <patch id="GekidouTranslation">
+    <folder external="/Gekidou/files" recursive="true" disc="/" />
+    <folder external="/Gekidou/files" />
+  </patch>
+</wiidisc>

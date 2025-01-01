@@ -1,0 +1,9 @@
+extracted/
+intermediate/
+original/
+pack/
+patch/
+tools/
+*.iso
+*.wbfs
+*.tmp
