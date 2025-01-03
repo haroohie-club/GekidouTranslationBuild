@@ -59,7 +59,7 @@ jobs:
   - task: DotNetCoreCLI@2
     inputs:
       command: 'build'
-      projects: GekidouTranslationUtility/HaruhiHGekidouCLI/HaruhiGekidouCLI.csproj
+      projects: GekidouTranslationUtility/HaruhiGekidouCLI/HaruhiGekidouCLI.csproj
     displayName: Build HaruhiGekidouCLI
 
   - task: PowerShell@2
